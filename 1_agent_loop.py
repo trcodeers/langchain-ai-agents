@@ -38,8 +38,6 @@ def apply_discount(price: float, discount_tier: str) -> float:
 
 
 # --- Agent Loop ---
-
-
 @traceable(name="LangChain Agent Loop")
 def run_agent(question: str):
     tools = [get_product_price, apply_discount]
@@ -47,9 +45,8 @@ def run_agent(question: str):
 
     llm = init_chat_model(f"ollama:{MODEL}", temperature=0)
     llm_with_tools = llm.bind_tools(tools)
+    structured_llm = llm.with_structured_output(DiscountResponse)
 
-    print(f"Question: {question}")
-    print("=" * 60)
 
     messages = [
       SystemMessage(
@@ -67,9 +64,6 @@ def run_agent(question: str):
             "Always use the apply_discount tool.\n"
             "4. If the user does not specify a discount tier, "
             "ask them which tier to use — do NOT assume one.\n"
-            "5. Your final response MUST be valid JSON only.\n"
-            '6. Format: {"discountedPrice": 123.45}\n'
-            "7. Do not add explanations, markdown, or extra text."
         )
         ),
       HumanMessage(content=question),
@@ -84,8 +78,8 @@ def run_agent(question: str):
 
         # If no tool calls, this is the final answer
         if not tool_calls:
-            print(f"\nFinal Answer: {ai_message.content}")
-            return ai_message.content
+            result = structured_llm.invoke(messages)
+            return result.model_dump()
 
         # Process only the FIRST tool call — force one tool per iteration
         tool_call = tool_calls[0]
@@ -101,8 +95,6 @@ def run_agent(question: str):
 
         observation = tool_to_use.invoke(tool_args)
 
-        print(f"[Tool Result] {observation}")
-
         messages.append(ai_message)
         messages.append(
             ToolMessage(content=str(observation), tool_call_id=tool_call_id)
@@ -115,3 +107,4 @@ def run_agent(question: str):
 if __name__ == "__main__":
     print()
     result = run_agent("What is the price of a laptop after applying a gold discount?")
+    print("\nFinal Result:", result)
