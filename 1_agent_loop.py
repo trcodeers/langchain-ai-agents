@@ -10,6 +10,11 @@ from langsmith import traceable
 MAX_ITERATIONS = 10
 MODEL = "qwen3:1.7b"
 
+from pydantic import BaseModel
+
+
+class DiscountResponse(BaseModel):
+    discountedPrice: float
 
 # --- Tools (LangChain @tool decorator) ---
 
@@ -47,25 +52,27 @@ def run_agent(question: str):
     print("=" * 60)
 
     messages = [
-        SystemMessage(
-            content=(
-                "You are a helpful shopping assistant. "
-                "You have access to a product catalog tool "
-                "and a discount tool.\n\n"
-                "STRICT RULES — you must follow these exactly:\n"
-                "1. NEVER guess or assume any product price. "
-                "You MUST call get_product_price first to get the real price.\n"
-                "2. Only call apply_discount AFTER you have received "
-                "a price from get_product_price. Pass the exact price "
-                "returned by get_product_price — do NOT pass a made-up number.\n"
-                "3. NEVER calculate discounts yourself using math. "
-                "Always use the apply_discount tool.\n"
-                "4. If the user does not specify a discount tier, "
-                "ask them which tier to use — do NOT assume one.",
-                "Return the result in object forms, like: {ammount: 123.45}"
-            )
+      SystemMessage(
+        content=(
+            "You are a helpful shopping assistant. "
+            "You have access to a product catalog tool "
+            "and a discount tool.\n\n"
+            "STRICT RULES — you must follow these exactly:\n"
+            "1. NEVER guess or assume any product price. "
+            "You MUST call get_product_price first to get the real price.\n"
+            "2. Only call apply_discount AFTER you have received "
+            "a price from get_product_price. Pass the exact price "
+            "returned by get_product_price — do NOT pass a made-up number.\n"
+            "3. NEVER calculate discounts yourself using math. "
+            "Always use the apply_discount tool.\n"
+            "4. If the user does not specify a discount tier, "
+            "ask them which tier to use — do NOT assume one.\n"
+            "5. Your final response MUST be valid JSON only.\n"
+            '6. Format: {"discountedPrice": 123.45}\n'
+            "7. Do not add explanations, markdown, or extra text."
+        )
         ),
-        HumanMessage(content=question),
+      HumanMessage(content=question),
     ]
 
     for iteration in range(1, MAX_ITERATIONS + 1):
@@ -86,7 +93,7 @@ def run_agent(question: str):
         tool_args = tool_call.get("args", {})
         tool_call_id = tool_call.get("id")
 
-        print(f"  [Tool Selected] {tool_name} with args: {tool_args}")
+        print(f"[Tool Selected] {tool_name} with args: {tool_args}")
 
         tool_to_use = tools_dict.get(tool_name)
         if tool_to_use is None:
@@ -94,7 +101,7 @@ def run_agent(question: str):
 
         observation = tool_to_use.invoke(tool_args)
 
-        print(f"  [Tool Result] {observation}")
+        print(f"[Tool Result] {observation}")
 
         messages.append(ai_message)
         messages.append(
@@ -106,6 +113,5 @@ def run_agent(question: str):
 
 
 if __name__ == "__main__":
-    print("Hello LangChain Agent (.bind_tools)!")
     print()
     result = run_agent("What is the price of a laptop after applying a gold discount?")
